@@ -655,7 +655,7 @@ namespace CppSharp.Generators.CLI
                 if (property.HasGetter)
                     WriteLine("{0} get();", type);
 
-                if (property.HasSetter)
+                if (property.HasSetter && !property.IsReadOnly)
                     WriteLine("void set({0});", type);
 
                 WriteCloseBraceIndent();

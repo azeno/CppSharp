@@ -319,7 +319,7 @@ namespace CppSharp.Generators.CLI
                     GeneratePropertyGetter(property.Field, realOwner, property.Name,
                         property.Type);
 
-                if (property.HasSetter)
+                if (property.HasSetter && !property.IsReadOnly)
                     GeneratePropertySetter(property.Field, realOwner, property.Name,
                         property.Type);
             }
@@ -329,7 +329,7 @@ namespace CppSharp.Generators.CLI
                     GeneratePropertyGetter(property.GetMethod, realOwner, property.Name,
                         property.Type);
 
-                if (property.HasSetter)
+                if (property.HasSetter && !property.IsReadOnly)
                     if (property.IsIndexer)
                         GeneratePropertySetter(property.SetMethod, realOwner, property.Name,
                             property.Type, property.GetMethod.Parameters[0]);

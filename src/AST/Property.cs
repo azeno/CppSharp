@@ -90,6 +90,9 @@ namespace CppSharp.AST
 
         public Class ExplicitInterfaceImpl { get; set; }
 
+        // Whether or not this property should be considered as read only
+        public bool IsReadOnly { get; set; }
+
         private readonly List<Parameter> parameters = new List<Parameter>();
         
         /// <summary>

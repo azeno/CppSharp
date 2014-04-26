@@ -1228,7 +1228,7 @@ namespace CppSharp.Generators.CSharp
                     if (prop.HasGetter)
                         GeneratePropertyGetter(prop.Field, @class);
 
-                    if (prop.HasSetter)
+                    if (prop.HasSetter && !prop.IsReadOnly)
                         GeneratePropertySetter(prop.Field.QualifiedType, prop.Field,
                             @class);
                 }
@@ -1237,7 +1237,7 @@ namespace CppSharp.Generators.CSharp
                     if (prop.HasGetter)
                         GeneratePropertyGetter(prop.GetMethod, @class);
 
-                    if (prop.HasSetter)
+                    if (prop.HasSetter && !prop.IsReadOnly)
                         GeneratePropertySetter(prop.GetMethod != null ?
                             prop.GetMethod.ReturnType : prop.SetMethod.Parameters[0].QualifiedType,
                             prop.SetMethod, @class);
