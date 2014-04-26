@@ -104,7 +104,9 @@ namespace CppSharp.Passes
             {
                 // If we've a setter use the pointee as the type of the property.
                 var pointerType = property.Type as PointerType;
-                if (pointerType != null && property.HasSetter)
+                if (pointerType != null &&
+                    pointerType.IsReference &&
+                    property.HasSetter)
                 {
                     property.QualifiedType = new QualifiedType(pointerType.Pointee, property.QualifiedType.Qualifiers);
                     property.GetMethod.ReturnType = property.QualifiedType;
