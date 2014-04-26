@@ -712,6 +712,15 @@ namespace CppSharp.Generators.CLI
 
                 var insideClass = typedef.Namespace is Class;
 
+                var callingConvention = function.CallingConvention.ToInteropCallConv();
+                if (callingConvention != System.Runtime.InteropServices.CallingConvention.Winapi)
+                {
+                    WriteLine("[{0}({1}::{2})] ",
+                        "System::Runtime::InteropServices::UnmanagedFunctionPointer",
+                        "System::Runtime::InteropServices::CallingConvention",
+                        callingConvention);
+                }
+
                 WriteLine("{0}{1};",
                     !insideClass ? "public " : "",
                     string.Format(TypePrinter.VisitDelegate(function),
