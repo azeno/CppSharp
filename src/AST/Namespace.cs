@@ -307,7 +307,7 @@ namespace CppSharp.AST
             return result;
         }
 
-        public IEnumerable<Function> FindOperator(CXXOperatorKind kind)
+        public virtual IEnumerable<Function> FindOperator(CXXOperatorKind kind)
         {
             return Functions.Where(fn => fn.OperatorKind == kind);
         }
