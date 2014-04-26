@@ -97,7 +97,7 @@ namespace CppSharp.Passes
                     GetMethod = @operator
                 };
 
-            if (!@operator.ReturnType.Qualifiers.IsConst && @operator.ReturnType.Type.IsAddress())
+            if (!@operator.ReturnType.Qualifiers.IsConst && @operator.ReturnType.Type.IsReference())
                 property.SetMethod = @operator;
 
             if (Driver.Options.IsCLIGenerator)
