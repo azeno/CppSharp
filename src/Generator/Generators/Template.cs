@@ -69,6 +69,21 @@ namespace CppSharp.Generators
             Blocks.Add(block);
         }
 
+        public void InsertBlock(int index, Block block)
+        {
+            if (Text.StringBuilder.Length != 0 || hasIndentChanged)
+                throw new InvalidOperationException("Insertion of block not allowed.");
+            block.Parent = this;
+            Blocks.Insert(index, block);
+        }
+
+        public void RemoveBlock(Block block)
+        {
+            if (Text.StringBuilder.Length != 0 || hasIndentChanged)
+                throw new InvalidOperationException("Removal of block not allowed.");
+            Blocks.Remove(block);
+        }
+
         public IEnumerable<Block> FindBlocks(int kind)
         {
             foreach (var block in Blocks)
