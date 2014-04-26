@@ -1,4 +1,5 @@
 using CppSharp.AST;
+using CppSharp.AST.Extensions;
 using CppSharp.Generators;
 using CppSharp.Generators.CLI;
 using CppSharp.Generators.CSharp;
@@ -99,7 +100,7 @@ namespace CppSharp.Types.Std
                 var checker = new TypeIgnoreChecker(TypeMapDatabase);
                 pointeeType.Visit(checker);
 
-                return checker.IsIgnored;
+                return checker.IsIgnored || pointeeType.Type.IsPointer();
             }
         }
 
