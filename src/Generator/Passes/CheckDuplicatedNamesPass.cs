@@ -10,14 +10,13 @@ namespace CppSharp.Passes
     {
         public Driver Driver { get; set; }
         private readonly string Name;
-        private readonly Dictionary<string, int> methodSignatures;
+        private Dictionary<string, List<Function>> methodSignatures;
         private int Count;
 
         public DeclarationName(string name, Driver driver)
         {
             Driver = driver;
             Name = name;
-            methodSignatures = new Dictionary<string, int>();
         }
 
         public bool UpdateName(Declaration decl)
@@ -62,26 +61,48 @@ namespace CppSharp.Passes
             if (Count == 0)
                 Count++;
 
-            if (!methodSignatures.ContainsKey(signature))
+            // Keep track of functions so we can remove const overloads later on
+            if (methodSignatures == null)
+                methodSignatures = new Dictionary<string, List<Function>>();
+
+            List<Function> functions;
+            if (!methodSignatures.TryGetValue(signature, out functions))
             {
-                methodSignatures.Add(signature, 0);
+                functions = new List<Function>(1) { function };
+                methodSignatures.Add(signature, functions);
                 return false;
             }
+            functions.Add(function);
 
-            var methodCount = ++methodSignatures[signature];
+            if (functions.Count > 1 && function is Method)
+            {
+                // Try to remove the const overload
+                var constOverload = functions.OfType<Method>()
+                    .FirstOrDefault(m => m.IsConst);
+                if (constOverload != null)
+                {
+                    Driver.Diagnostics.EmitWarning(
+                        "Duplicate const method '{0}' ignored.", constOverload.Signature);
+                    constOverload.ExplicityIgnored = true;
+                    functions.Remove(constOverload);
+                    return false;
+                }
+            }
 
-            if (Count < methodCount+1)
-                Count = methodCount+1;
+            var methodCount = functions.Count - 1;
+            if (Count < methodCount + 1)
+                Count = methodCount + 1;
 
             if (function.IsOperator)
             {
                 // TODO: turn into a method; append the original type (say, "signed long") of the last parameter to the type so that the user knows which overload is called
-                Driver.Diagnostics.EmitWarning("Duplicate operator {0} ignored", function.Name);
+                // Use the qualified name here - function.Signature can be empty
+                Driver.Diagnostics.EmitWarning("Duplicate operator '{0}' ignored.", function.QualifiedOriginalName);
                 function.ExplicityIgnored = true;
             }
             else if (method != null && method.IsConstructor)
             {
-                Driver.Diagnostics.EmitWarning("Duplicate constructor {0} ignored", function.Name);
+                Driver.Diagnostics.EmitWarning("Duplicate constructor '{0}' ignored.", function.Signature);
                 function.ExplicityIgnored = true;
             }
             else

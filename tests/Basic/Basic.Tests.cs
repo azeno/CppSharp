@@ -303,5 +303,12 @@ public class BasicTests : GeneratorTestFixture
         ClassC classC = (ClassC)classB;
         Assert.AreEqual(classB.Value, classC.Value);
     }
+
+    [Test]
+    public unsafe void TestRemovalOfConstOverloadedMethods()
+    {
+        var @class = new TestRemoveConstOverloads();
+        Assert.AreEqual(1, @class.Valid(1));
+    }
 }
  

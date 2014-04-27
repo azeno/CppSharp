@@ -450,3 +450,12 @@ public:
     explicit ClassC(const ClassB& x) { Value = x.Value; }
     int Value;
 };
+
+// Tests removal of const overloaded methods
+class DLL_API TestRemoveConstOverloads
+{
+public:
+    int Valid(int x) { return 1; }
+    // Should get removed
+    int Valid(const int x) const { return 2; }
+};
