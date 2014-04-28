@@ -1,5 +1,6 @@
 #include "../Tests.h"
 #include <vector>
+#include <ostream>
 
 struct DLL_API TestVectors
 {
@@ -7,4 +8,9 @@ struct DLL_API TestVectors
     int SumIntVector(std::vector<int>& vec);
 
     std::vector<int> IntVector;
+};
+
+DLL_API void WriteToOStream(std::ostream& stream, const char* s)
+{
+    stream << s;
 };
