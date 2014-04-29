@@ -10,6 +10,7 @@ namespace CppSharp.AST
     public abstract class Type
     {
         public static Func<Type, string> TypePrinterDelegate;
+        public static Func<Type, string> NativeTypePrinterDelegate;
 
         public bool IsDependent { get; set; }
 
@@ -19,6 +20,14 @@ namespace CppSharp.AST
         public override string ToString()
         {
             return TypePrinterDelegate(this);
+        }
+
+        public string ToString(bool native)
+        {
+            if (native)
+                return NativeTypePrinterDelegate(this);
+            else
+                return TypePrinterDelegate(this);
         }
     }
 
@@ -61,6 +70,11 @@ namespace CppSharp.AST
         public override string ToString()
         {
             return Type.ToString();
+        }
+
+        public string ToString(bool native)
+        {
+            return Type.ToString(native);
         }
 
         public override bool Equals(object obj)

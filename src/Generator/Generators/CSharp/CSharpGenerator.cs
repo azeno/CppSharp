@@ -1,19 +1,23 @@
 ﻿using System.Collections.Generic;
 using CppSharp.AST;
 using CppSharp.Passes;
+using CppSharp.Types;
 
 namespace CppSharp.Generators.CSharp
 {
     public class CSharpGenerator : Generator
     {
         private readonly CSharpTypePrinter typePrinter;
+        private readonly CppTypePrinter nativeTypePrinter;
         private readonly CSharpExpressionPrinter expressionPrinter;
 
         public CSharpGenerator(Driver driver) : base(driver)
         {
             typePrinter = new CSharpTypePrinter(driver.TypeDatabase, driver.Options, driver.ASTContext);
             expressionPrinter = new CSharpExpressionPrinter();
-            CppSharp.AST.Type.TypePrinterDelegate += type => type.Visit(typePrinter).Type;
+            Type.TypePrinterDelegate += type => type.Visit(typePrinter).Type;
+            nativeTypePrinter = new CppTypePrinter(driver.TypeDatabase);
+            Type.NativeTypePrinterDelegate += type => type.Visit(nativeTypePrinter);
         }
 
         public override List<Template> Generate(TranslationUnit unit)
