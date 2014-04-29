@@ -263,7 +263,9 @@ namespace CppSharp
         public void SetupPasses(ILibrary library)
         {
             if (Options.GenerateClassTemplates)
-                TranslationUnitPasses.AddPass(new InstantiatedClassTemplatePass());
+                TranslationUnitPasses.AddPass(new ClassTemplateInstantiationPass());
+            if (Options.GenerateFunctionTemplates)
+                TranslationUnitPasses.AddPass(new FunctionTemplateInstantiationPass());
 
             TranslationUnitPasses.AddPass(new CleanUnitPass(Options));
             TranslationUnitPasses.AddPass(new SortDeclarationsPass());

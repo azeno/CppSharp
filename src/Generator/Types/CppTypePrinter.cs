@@ -174,7 +174,7 @@ namespace CppSharp.Types
 
         public string VisitCILType(CILType type, TypeQualifiers quals)
         {
-            return string.Empty;
+            return string.Format("gcroot<{0}>", type);
         }
 
         public string VisitPrimitiveType(PrimitiveType type, TypeQualifiers quals)

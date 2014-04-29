@@ -300,13 +300,13 @@ namespace CppSharp.Generators.CLI
 
         public void GenerateClassGenericMethods(Class @class)
         {
-            var printer = TypePrinter;
-            var oldCtx = printer.Context;
+            var oldCtx = TypePrinter.Context;
 
             PushIndent();
             foreach (var template in @class.Templates)
             {
                 if (template.Ignore) continue;
+                if (template.TemplatedDecl.Ignore) continue;
 
                 var functionTemplate = template as FunctionTemplate;
                 if (functionTemplate == null) continue;
@@ -316,12 +316,12 @@ namespace CppSharp.Generators.CLI
                 var function = functionTemplate.TemplatedFunction;
 
                 var typeCtx = new CLITypePrinterContext()
-                    {
-                        Kind = TypePrinterContextKind.Template,
-                        Declaration = template
-                    };
+                {
+                    Kind = TypePrinterContextKind.Normal,
+                    Declaration = template
+                };
 
-                printer.Context = typeCtx;
+                TypePrinter.Context = typeCtx;
 
                 var typePrinter = new CLITypePrinter(Driver, typeCtx);
                 var retType = function.ReturnType.Type.Visit(typePrinter,
@@ -356,7 +356,7 @@ namespace CppSharp.Generators.CLI
             }
             PopIndent();
 
-            printer.Context = oldCtx;
+            TypePrinter.Context = oldCtx;
         }
 
         public void GenerateClassConstructors(Class @class, string nativeType)

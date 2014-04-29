@@ -107,10 +107,12 @@ namespace CppSharp.Types
     public class TypeMapDatabase : ITypeMapDatabase
     {
         public IDictionary<string, System.Type> TypeMaps { get; set; }
+        private readonly Dictionary<Type, TypeMap> InternalTypeMaps;
 
         public TypeMapDatabase()
         {
             TypeMaps = new Dictionary<string, System.Type>();
+            InternalTypeMaps = new Dictionary<Type, TypeMap>();
         }
 
         public void SetupTypeMaps()
@@ -122,6 +124,17 @@ namespace CppSharp.Types
                 var types = assembly.FindDerivedTypes(typeof(TypeMap));
                 SetupTypeMaps(types);
             }
+        }
+
+        public void AddTypeMap(Type type, TypeMap typeMap)
+        {
+            InternalTypeMaps.Add(type, typeMap);
+        }
+
+        public bool HasTypeMap(Type type)
+        {
+            TypeMap typeMap;
+            return FindTypeMapRecursive(type, out typeMap);
         }
 
         private void SetupTypeMaps(IEnumerable<System.Type> types)
@@ -140,14 +153,18 @@ namespace CppSharp.Types
 
         public bool FindTypeMap(Declaration decl, Type type, out TypeMap typeMap)
         {
+            // Do we've an internal mapping available?
+            if (type != null && InternalTypeMaps.TryGetValue(type, out typeMap))
+                return true;
+
             // We try to find type maps from the most qualified to less qualified
             // types. Example: '::std::vector', 'std::vector' and 'vector'
 
             var typePrinter = new CppTypePrinter(this)
-                {
-                    PrintScopeKind = CppTypePrintScopeKind.GlobalQualified,
-                    PrintLogicalNames = true
-                };
+            {
+                PrintScopeKind = CppTypePrintScopeKind.GlobalQualified,
+                PrintLogicalNames = true
+            };
 
             if (FindTypeMap(decl.Visit(typePrinter), out typeMap))
             {
@@ -174,6 +191,10 @@ namespace CppSharp.Types
 
         public bool FindTypeMap(Type type, out TypeMap typeMap)
         {
+            // Do we've an internal mapping available?
+            if (InternalTypeMaps.TryGetValue(type, out typeMap))
+                return true;
+
             var typePrinter = new CppTypePrinter(this);
 
             var template = type as TemplateSpecializationType;

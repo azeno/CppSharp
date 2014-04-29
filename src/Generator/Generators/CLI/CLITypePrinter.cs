@@ -101,7 +101,13 @@ namespace CppSharp.Generators.CLI
         public string VisitParameter(Parameter param, bool hasName = true)
         {
             Context.Parameter = param;
-            var type = param.Type.Visit(this, param.QualifiedType.Qualifiers);
+            string type;
+            if (param.Usage == ParameterUsage.Out ||
+                param.Usage == ParameterUsage.InOut)
+                // Skip one level of indirection
+                type = param.Type.GetPointee().Visit(this, param.QualifiedType.Qualifiers);
+            else
+                type = param.Type.Visit(this, param.QualifiedType.Qualifiers);
             Context.Parameter = null;
 
             var str = string.Empty;
@@ -149,16 +155,11 @@ namespace CppSharp.Generators.CLI
             // * Any pointer type.
             // * Any user-defined struct type that contains fields of unmanaged types only.
             var finalPointee = pointer.GetFinalPointee();
-            if (finalPointee.IsPrimitiveType())
-            {
-                // Skip one indirection if passed by reference
-                var param = Context.Parameter;
-                if (param != null && (param.IsOut || param.IsInOut)
-                    && pointee == finalPointee)
-                    return pointee.Visit(this, quals);
-
-                return pointee.Visit(this, quals) + "*";
-            }
+            TypeMap mappedType;
+            if (finalPointee.IsPrimitiveType() || 
+                (TypeMapDatabase.FindTypeMap(finalPointee, out mappedType) && 
+                 mappedType.IsValueType))
+                return pointer.Pointee.Visit(this, quals) + "*";
 
             Enumeration @enum;
             if (pointee.IsTagDecl(out @enum))
@@ -264,7 +265,7 @@ namespace CppSharp.Generators.CLI
         public string VisitTemplateParameterSubstitutionType(
             TemplateParameterSubstitutionType param, TypeQualifiers quals)
         {
-            throw new NotImplementedException();
+            return param.Replacement.Visit(this);
         }
 
         public string VisitInjectedClassNameType(InjectedClassNameType injected, TypeQualifiers quals)

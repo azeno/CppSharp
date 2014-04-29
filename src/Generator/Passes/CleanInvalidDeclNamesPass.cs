@@ -107,7 +107,13 @@ namespace CppSharp.Passes
             // so we ignore the class and process just the typedef.
 
             if (@class != null)
-                typedef.ExplicityIgnored = true;
+            {
+                // Do not ignore it if it was used as the type name for a
+                // template instantiation by the ClassTemplateInstantiationPass.
+                if (!Driver.Options.GenerateClassTemplates ||
+                    !Driver.TypeDatabase.HasTypeMap(typedef.Type))
+                    typedef.ExplicityIgnored = true;
+            }
 
             if (typedef.Type == null)
                 typedef.ExplicityIgnored = true;

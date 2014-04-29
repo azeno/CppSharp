@@ -312,6 +312,18 @@ namespace CppSharp
             }
         }
 
+        public static void IgnoreClassTemplateWithName(this ASTContext context, string className,
+            string name)
+        {
+            foreach (var template in from @class in context.FindClass(className)
+                                     from template in @class.Templates
+                                     where template.Name == name
+                                     select template)
+            {
+                template.ExplicityIgnored = true;
+            }
+        }
+
         #endregion
 
         #region Module Helpers

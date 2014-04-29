@@ -193,6 +193,14 @@ namespace CppSharp.AST
             return function;
         }
 
+        public Function FindFunction(IntPtr ptr)
+        {
+            return Functions
+                .Concat(Templates.OfType<FunctionTemplate>()
+                    .Select(t => t.TemplatedFunction))
+                .FirstOrDefault(f => f.OriginalPtr == ptr);
+        }
+
         Class CreateClass(string name, bool isComplete)
         {
             var  @class = new Class

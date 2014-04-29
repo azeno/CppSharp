@@ -93,8 +93,13 @@ namespace CppSharp.Generators.CLI
             {
                 var returnVarName = Context.ReturnVarName;
                 if (quals.IsConst != Context.ReturnType.Qualifiers.IsConst)
+                {
+                    var returnType = Context.ReturnType.ToString(native: true);
+                    if (returnType.StartsWith("const "))
+                        returnType = returnType.Remove(0, 6);
                     returnVarName = string.Format("const_cast<{0}>({1})",
-                        Context.ReturnType, Context.ReturnVarName);
+                        returnType, Context.ReturnVarName);
+                }
                 if (pointer.Pointee is TypedefType)
                     Context.Return.Write("reinterpret_cast<{0}>({1})", pointer,
                         returnVarName);
@@ -220,16 +225,21 @@ namespace CppSharp.Generators.CLI
 
             instance += Context.ReturnVarName;
             var needsCopy = !(Context.Declaration is Field);
+            var instanceCanBeNull = true;
 
             if (@class.IsRefType && needsCopy)
             {
+                var returnVarName = Context.ReturnVarName;
+                if (Context.ReturnType.Type.IsPointer())
+                    returnVarName = "*" + returnVarName;
                 var name = Generator.GeneratedIdentifier(Context.ReturnVarName);
                 Context.SupportBefore.WriteLine("auto {0} = new ::{1}({2});", name,
-                    @class.QualifiedOriginalName, Context.ReturnVarName);
+                    @class.QualifiedOriginalName, returnVarName);
                 instance = name;
+                instanceCanBeNull = false;
             }
 
-            WriteClassInstance(@class, instance);
+            WriteClassInstance(@class, instance, instanceCanBeNull);
             return true;
         }
 
@@ -241,11 +251,15 @@ namespace CppSharp.Generators.CLI
             return string.Format("{0}", decl.QualifiedName);
         }
 
-        public void WriteClassInstance(Class @class, string instance)
+        public void WriteClassInstance(Class @class, string instance, bool instanceCanBeNull = true)
         {
             if (@class.IsRefType)
-                Context.Return.Write("({0} == nullptr) ? nullptr : gcnew ",
-                    instance);
+            {
+                if (instanceCanBeNull)
+                    Context.Return.Write("({0} == nullptr) ? nullptr : ",
+                        instance);
+                Context.Return.Write("gcnew ");
+            }
 
             Context.Return.Write("{0}(", QualifiedIdentifier(@class));
             Context.Return.Write("(::{0}*)", @class.QualifiedOriginalName);
@@ -327,6 +341,12 @@ namespace CppSharp.Generators.CLI
         public bool VisitDelegate(Delegate @delegate)
         {
             throw new NotImplementedException();
+        }
+
+        public override bool VisitCILType(CILType type, TypeQualifiers quals)
+        {
+            Context.Return.Write("({0}){1}", type, Context.ReturnVarName);
+            return base.VisitCILType(type, quals);
         }
     }
 
@@ -563,6 +583,12 @@ namespace CppSharp.Generators.CLI
             }
 
             return true;
+        }
+
+        public override bool VisitCILType(CILType type, TypeQualifiers quals)
+        {
+            Context.Return.Write("gcroot<{0}>({1})", type, Context.Parameter.Name);
+            return base.VisitCILType(type, quals);
         }
 
         private void MarshalRefClass(Class @class)

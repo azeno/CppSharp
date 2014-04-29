@@ -197,6 +197,9 @@ struct CS_API TemplateParameterType : public Type
 {
     DECLARE_TYPE_KIND(TemplateParameter)
     TemplateParameter Parameter;
+    unsigned int Depth;
+    unsigned int Index;
+    bool IsParameterPack;
 };
 
 struct CS_API TemplateParameterSubstitutionType : public Type

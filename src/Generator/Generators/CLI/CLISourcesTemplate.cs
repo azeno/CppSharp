@@ -108,22 +108,6 @@ namespace CppSharp.Generators.CLI
                 }
             }
 
-            if (Options.GenerateFunctionTemplates)
-            {
-                foreach (var template in @namespace.Templates)
-                {
-                    if (template.Ignore) continue;
-
-                    var functionTemplate = template as FunctionTemplate;
-                    if (functionTemplate == null) continue;
-
-                    if (functionTemplate.Ignore)
-                        continue;
-
-                    GenerateFunctionTemplate(functionTemplate);
-                }
-            }
-
             foreach(var childNamespace in @namespace.Namespaces)
                 GenerateDeclContext(childNamespace);
 
@@ -191,6 +175,20 @@ namespace CppSharp.Generators.CLI
 
                 GenerateDeclarationCommon(variable);
                 GenerateVariable(variable, @class);
+            }
+
+            if (Options.GenerateFunctionTemplates)
+            {
+                foreach (var template in @class.Templates)
+                {
+                    if (template.Ignore) continue;
+                    if (template.TemplatedDecl.Ignore) continue;
+
+                    var functionTemplate = template as FunctionTemplate;
+                    if (functionTemplate == null) continue;
+
+                    GenerateFunctionTemplate(functionTemplate);
+                }
             }
 
             PopBlock();
@@ -273,7 +271,7 @@ namespace CppSharp.Generators.CLI
 
             var typeCtx = new CLITypePrinterContext()
                 {
-                    Kind = TypePrinterContextKind.Template,
+                    Kind = TypePrinterContextKind.Normal,
                     Declaration = template
                 };
 
@@ -295,8 +293,30 @@ namespace CppSharp.Generators.CLI
 
             WriteStartBraceIndent();
 
-            var @class = function.Namespace as Class;
-            GenerateFunctionCall(function, @class);
+            var @class = template.Namespace as Class;
+            var fallbackType = new CILType(typeof(object));
+            var foundFallbackSpecialization = false;
+            foreach (var specializationInfo in template.Specializations)
+            {
+                var instance = specializationInfo.SpecializedFunction;
+                var argument = specializationInfo.Arguments[0];
+                var type = argument.Type.Type;
+                if (!type.Equals(fallbackType))
+                {
+                    WriteLine("if ({0}::typeid == {1}::typeid)", template.Parameters[0].Name, type);
+                    WriteStartBraceIndent();
+                    GenerateFunctionCall(instance, @class);
+                    WriteCloseBraceIndent();
+                }
+                else
+                {
+                    foundFallbackSpecialization = true;
+                    GenerateFunctionCall(instance, @class);
+                    break;
+                }
+            }
+            if (!foundFallbackSpecialization)
+                WriteLine("throw gcnew System::NotImplementedException()");
 
             WriteCloseBraceIndent();
             NewLine();
@@ -893,7 +913,7 @@ namespace CppSharp.Generators.CLI
             {
                 if (IsNativeFunctionOrStaticMethod(function))
                 {
-                    Write("::{0}(", function.QualifiedOriginalName);
+                    Write("::{0}", function.QualifiedOriginalName);
                 }
                 else
                 {
@@ -901,9 +921,22 @@ namespace CppSharp.Generators.CLI
                         Write("{0}.", valueMarshalName);
                     else if (IsNativeMethod(function))
                         Write("((::{0}*)NativePtr)->", @class.QualifiedOriginalName);
-                    Write("{0}(", function.OriginalName);
+                    Write("{0}", function.OriginalName);
                 }
 
+                var specializationInfo = function.SpecializationInfo;
+                if (specializationInfo != null)
+                {
+                    var typeArguments = specializationInfo.Arguments;
+                    if (typeArguments != null)
+                    {
+                        Write("<");
+                        GenerateTypeArguments(typeArguments);
+                        Write(">");
+                    }
+                }
+
+                Write("(");
                 GenerateFunctionParams(@params);
                 WriteLine(");");
             }
@@ -962,7 +995,14 @@ namespace CppSharp.Generators.CLI
                 if (!string.IsNullOrWhiteSpace(marshal.Context.SupportBefore))
                     Write(marshal.Context.SupportBefore);
 
-                WriteLine("return {0};", marshal.Context.Return);
+                var specializationInfo = function.SpecializationInfo;
+                if (specializationInfo != null)
+                {
+                    var templatedFunction = specializationInfo.Template.TemplatedFunction;
+                    WriteLine("return ({0}){1};", templatedFunction.ReturnType.Type, marshal.Context.Return);
+                }
+                else
+                    WriteLine("return {0};", marshal.Context.Return);
             }
         }
 
@@ -1018,7 +1058,9 @@ namespace CppSharp.Generators.CLI
             var paramIndex = 0;
             foreach (var param in @params)
             {
-                marshals.Add(GenerateFunctionParamMarshal(param, paramIndex, function));
+                var marshal = GenerateFunctionParamMarshal(
+                    param, paramIndex, function);
+                marshals.Add(marshal);
                 paramIndex++;
             }
 
@@ -1030,8 +1072,25 @@ namespace CppSharp.Generators.CLI
         {
             var paramMarshal = new ParamMarshal { Name = param.Name, Param = param };
 
-            if (param.Type is BuiltinType)
+            string explicitCast = null;
+            if (function != null)
+            {
+                var specializationInfo = function.SpecializationInfo;
+                if (specializationInfo != null)
+                {
+                    var template = specializationInfo.Template;
+                    var templateParam = template.TemplatedFunction.Parameters[paramIndex];
+                    if (!templateParam.Type.Equals(param.Type))
+                        explicitCast = param.Type.ToString();
+                }
+            }
+
+            if (param.Type.IsPrimitiveType())
+            {
+                if (explicitCast != null)
+                    paramMarshal.Prefix = string.Format("({0})", explicitCast);
                 return paramMarshal;
+            }
 
             var argName = "arg" + paramIndex.ToString(CultureInfo.InvariantCulture);
 
@@ -1053,12 +1112,12 @@ namespace CppSharp.Generators.CLI
             else
             {
                 var ctx = new MarshalContext(Driver)
-                        {
-                            Parameter = param,
-                            ParameterIndex = paramIndex,
-                            ArgName = argName,
-                            Function = function
-                        };
+                {
+                    Parameter = param,
+                    ParameterIndex = paramIndex,
+                    ArgName = argName,
+                    Function = function
+                };
 
                 var marshal = new CLIMarshalManagedToNativePrinter(ctx);
                 param.Visit(marshal);
@@ -1083,10 +1142,21 @@ namespace CppSharp.Generators.CLI
         {
             var names = @params.Select(param =>
                 {
-                    if (!string.IsNullOrWhiteSpace(param.Prefix))
-                        return param.Prefix + param.Name;
-                    return param.Name;
-                }).ToList();
+                    var result = !string.IsNullOrWhiteSpace(param.Prefix)
+                        ? param.Prefix + param.Name
+                        : param.Name;
+                    return result;
+                });
+            Write(string.Join(", ", names));
+        }
+
+        public void GenerateTypeArguments(List<TemplateArgument> arguments)
+        {
+            var names = arguments.Select(arg =>
+                {
+                    var cppTypePrinter = new CppTypePrinter(Driver.TypeDatabase);
+                    return arg.Type.Visit(cppTypePrinter);
+                });
             Write(string.Join(", ", names));
         }
 

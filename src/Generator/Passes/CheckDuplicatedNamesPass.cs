@@ -170,6 +170,23 @@ namespace CppSharp.Passes
             return false;
         }
 
+        public override bool VisitFunctionTemplateDecl(FunctionTemplate template)
+        {
+            if (!VisitDeclaration(template))
+                return false;
+
+            if (template.Ignore)
+                return false;
+
+            CheckDuplicate(template.TemplatedFunction);
+
+            // In case the templated function was ignored, ignore the template too
+            if (template.TemplatedFunction.Ignore)
+                template.ExplicityIgnored = true;
+
+            return false;
+        }
+
         public override bool VisitClassDecl(Class @class)
         {
             if (!VisitDeclaration(@class))
@@ -192,6 +209,10 @@ namespace CppSharp.Passes
             foreach (var property in @class.Properties)
                 VisitProperty(property);
 
+            if (Driver.Options.GenerateFunctionTemplates)
+                foreach (var template in @class.Templates)
+                    template.Visit(this);
+
             var total = (uint)0;
             foreach (var method in @class.Methods.Where(m => m.IsConstructor &&
                 !m.IsCopyConstructor && !m.IsMoveConstructor))
@@ -206,7 +227,7 @@ namespace CppSharp.Passes
 
         void CheckDuplicate(Declaration decl)
         {
-            if (decl.IsDependent || decl.Ignore)
+            if (decl.Ignore)
                 return;
 
             if (string.IsNullOrWhiteSpace(decl.Name))

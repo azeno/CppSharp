@@ -61,6 +61,14 @@ namespace CppSharp.Passes
             return true;
         }
 
+        public override bool VisitFunctionTemplateDecl(FunctionTemplate template)
+        {
+            if (base.VisitFunctionTemplateDecl(template))
+                return true;
+            template.ExplicityIgnored = true;
+            return false;
+        }
+
         static bool CheckDefaultParameters(Function function, Function overload)
         {
             var commonParameters = Math.Min(function.Parameters.Count, overload.Parameters.Count);

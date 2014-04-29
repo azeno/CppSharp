@@ -88,6 +88,15 @@ namespace CppSharp
         public bool OutputInteropIncludes;
         public bool GenerateLibraryNamespace;
         public bool GenerateFunctionTemplates;
+
+        /// <summary>
+        /// If set to true the generator will use InstantiatedClassTemplatePass to
+        /// look for instantiated class templates. If an instantiation is available
+        /// all the dependent members of the template will be moved to the instantiation
+        /// itself.
+        /// </summary>
+        public bool GenerateClassTemplates;
+
         public bool GeneratePartialClasses;
         public bool GenerateVirtualTables;
         public bool GenerateAbstractImpls;

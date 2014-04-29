@@ -1,6 +1,8 @@
 ﻿using CppSharp.AST;
 using CppSharp.AST.Extensions;
 using CppSharp.Types;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace CppSharp
 {
@@ -32,14 +34,15 @@ namespace CppSharp
     /// </summary>
     public class TypeIgnoreChecker : AstVisitor
     {
-        ITypeMapDatabase TypeMapDatabase { get; set; }
+        private readonly ITypeMapDatabase TypeMapDatabase;
+        private readonly IEnumerable<TemplateParameter> ValidParameters;
         public bool IsIgnored;
 
-        public TypeIgnoreChecker(ITypeMapDatabase database)
+        public TypeIgnoreChecker(ITypeMapDatabase database, IEnumerable<TemplateParameter> validParameters = null)
         {
             TypeMapDatabase = database;
+            ValidParameters = validParameters ?? Enumerable.Empty<TemplateParameter>();
             Options.VisitClassBases = false;
-            Options.VisitTemplateArguments = false;
         }
 
         void Ignore()
@@ -101,6 +104,16 @@ namespace CppSharp
             return base.VisitTypedefDecl(typedef);
         }
 
+        public override bool VisitPointerType(PointerType pointer, TypeQualifiers quals)
+        {
+            if (pointer.Pointee is TemplateParameterType && !pointer.IsReference)
+            {
+                Ignore();
+                return false;
+            }
+            return base.VisitPointerType(pointer, quals);
+        }
+
         public override bool VisitMemberPointerType(MemberPointerType member,
             TypeQualifiers quals)
         {
@@ -129,6 +142,16 @@ namespace CppSharp
             return base.VisitTemplateSpecializationType(template, quals);
         }
 
+        public override bool VisitTemplateParameterType(TemplateParameterType param, TypeQualifiers quals)
+        {
+            if (!ValidParameters.Contains(param.Parameter))
+            {
+                Ignore();
+                return false;
+            }
+            return base.VisitTemplateParameterType(param, quals);
+        }
+
         public override bool VisitFunctionType(FunctionType function, TypeQualifiers quals)
         {
             // We don't know how to marshal non-static member functions
@@ -138,6 +161,12 @@ namespace CppSharp
                 return false;
             }
             return base.VisitFunctionType(function, quals);
+        }
+
+        public override bool VisitDependentNameType(DependentNameType dependent, TypeQualifiers quals)
+        {
+            Ignore();
+            return base.VisitDependentNameType(dependent, quals);
         }
     }
 

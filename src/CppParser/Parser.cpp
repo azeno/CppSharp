@@ -1603,6 +1603,9 @@ Type* Parser::WalkType(clang::QualType QualType, clang::TypeLoc* TL,
 
         if (auto Ident = TP->getIdentifier())
             TPT->Parameter.Name = Ident->getName();
+        TPT->Depth = TP->getDepth();
+        TPT->Index = TP->getIndex();
+        TPT->IsParameterPack = TP->isParameterPack();
 
         Ty = TPT;
         break;

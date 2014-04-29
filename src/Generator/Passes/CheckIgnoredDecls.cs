@@ -1,11 +1,15 @@
 ﻿using CppSharp.AST;
 using CppSharp.AST.Extensions;
 using CppSharp.Types;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace CppSharp.Passes
 {
     public class CheckIgnoredDeclsPass : TranslationUnitPass
     {
+        readonly Stack<TemplateParameter> CurrentParameters = new Stack<TemplateParameter>();
+
         public bool CheckDeclarationAccess(Declaration decl)
         {
             var generateNonPublicDecls = Driver.Options.IsCSharpGenerator;
@@ -44,7 +48,7 @@ namespace CppSharp.Passes
                 return true;
             }
 
-            if (decl.IsDependent)
+            if (decl.IsDependent && CurrentParameters.Count == 0)
             {
                 decl.ExplicityIgnored = true;
                 Log.Debug("Decl '{0}' was ignored due to dependent context",
@@ -145,7 +149,87 @@ namespace CppSharp.Passes
             if (!CheckIgnoredBaseOverridenMethod(method))
                 return false;
 
+            if (method.IsDependent && method.IsConstructor)
+            {
+                method.ExplicityIgnored = true;
+                Log.Debug("Constructor '{0}' was ignored due to dependent context",
+                    method.Name);
+                return true;
+            }
+
             return base.VisitMethodDecl(method);
+        }
+
+        public override bool VisitClassTemplateDecl(ClassTemplate template)
+        {
+            string msg;
+            if (!HasInvalidTemplateParameters(template, out msg))
+            {
+                Log.Debug(
+                    "Class template '{0}' was ignored due to {1}.",
+                    template, msg);
+
+                Ignore(template);
+                return false;
+            }
+            foreach (var param in template.Parameters)
+                CurrentParameters.Push(param);
+            var result = base.VisitClassTemplateDecl(template);
+            foreach (var param in template.Parameters)
+                CurrentParameters.Pop();
+            return result;
+        }
+
+        public override bool VisitFunctionTemplateDecl(FunctionTemplate template)
+        {
+            if (template.TemplatedFunction.IsOperator)
+            {
+                Log.Debug(
+                    "Function template '{0}' was ignored due being an operator.",
+                    template);
+                Ignore(template);
+                return false;
+            }
+            string msg;
+            if (!HasInvalidTemplateParameters(template, out msg))
+            {
+                Log.Debug(
+                    "Function template '{0}' was ignored due to {1}.",
+                    template, msg);
+
+                Ignore(template);
+                return false;
+            }
+            foreach (var param in template.Parameters)
+                CurrentParameters.Push(param);
+            var result = base.VisitFunctionTemplateDecl(template);
+            foreach (var param in template.Parameters)
+                CurrentParameters.Pop();
+            if (template.TemplatedFunction.Ignore)
+                template.ExplicityIgnored = true;
+            return result;
+        }
+
+        private static void Ignore(Template template)
+        {
+            template.ExplicityIgnored = true;
+            template.TemplatedDecl.ExplicityIgnored = true;
+        }
+
+        private bool HasInvalidTemplateParameters(Template template, out string msg)
+        {
+            if (template.Parameters.Any(p => !p.IsTypeParameter))
+            {
+                msg = "containing non-type parameters";
+                return false;
+            }
+            if (template.Parameters.Count > 1)
+            {
+                msg = "containing more than one type parameter";
+                return false;
+            }
+            msg = null;
+            return true;
         }
 
         bool CheckIgnoredBaseOverridenMethod(Method method)
@@ -391,7 +475,7 @@ namespace CppSharp.Passes
 
         bool IsTypeIgnored(AST.Type type)
         {
-            var checker = new TypeIgnoreChecker(Driver.TypeDatabase);
+            var checker = new TypeIgnoreChecker(Driver.TypeDatabase, CurrentParameters);
             type.Visit(checker);
 
             return checker.IsIgnored;
@@ -399,7 +483,7 @@ namespace CppSharp.Passes
 
         bool IsDeclIgnored(Declaration decl)
         {
-            var checker = new TypeIgnoreChecker(Driver.TypeDatabase);
+            var checker = new TypeIgnoreChecker(Driver.TypeDatabase, CurrentParameters);
             decl.Visit(checker);
 
             return checker.IsIgnored;
