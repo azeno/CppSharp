@@ -68,6 +68,13 @@ public:
     T value;
 };
 
+// Tests whether the ToString method gets generated for an instantiation of TestTemplateClass
+template<typename U> std::ostream& operator<<(std::ostream& os, const TestTemplateClass<U>& t)
+{
+    os << "value = " << t.value;
+    return os;
+}
+
 // Explicit instantiation
 template class TestTemplateClass<int>;
 // Implicit instantiation

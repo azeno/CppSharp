@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using CppSharp.AST;
+using CppSharp.AST.Extensions;
 using CppSharp.Generators;
 using CppSharp.Generators.CLI;
 using CppSharp.Passes;
@@ -207,8 +208,17 @@ namespace CppSharp
             if (!sndType.QualifiedPointee.Qualifiers.IsConst)
                 return false;
             var @class = method.Namespace as Class;
-            var classType = new TagType(@class);
-            if (!classType.Equals(sndType.Pointee))
+            AST.Type type;
+            var specializedClass = @class as ClassTemplateSpecialization;
+            if (specializedClass != null)
+                type = new TemplateSpecializationType()
+                {
+                    Arguments = specializedClass.Arguments,
+                    Template = specializedClass.TemplatedDecl
+                };
+            else
+                type = new TagType(@class);
+            if (!type.Equals(sndType.Pointee))
                 return false;
 
             return true;

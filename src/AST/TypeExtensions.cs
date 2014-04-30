@@ -105,6 +105,16 @@
             return type != null;
         }
 
+        public static bool IsPointerToTemplate<T>(this Type t, out T template) where T : Template
+        {
+            TemplateSpecializationType tst;
+            if (t.IsPointerTo(out tst))
+                template = tst.Template as T;
+            else
+                template = null;
+            return template != null;
+        }
+
         public static bool IsTagDecl<T>(this Type t, out T decl) where T : Declaration
         {
             var tag = t.Desugar() as TagType;
