@@ -153,6 +153,7 @@ namespace CppSharp
         public string IncludePrefix;
         public bool WriteOnlyWhenChanged;
         public Func<TranslationUnit, string> GenerateName;
+        public Func<TranslationUnit, string> GetIncludePath;
         public int MaxIndent;
         public string CommentPrefix;
 

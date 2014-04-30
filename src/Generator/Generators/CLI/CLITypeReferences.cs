@@ -126,7 +126,9 @@ namespace CppSharp.Generators.CLI
             {
                 typeRef.Include = new Include
                     {
-                        File = GetIncludePath(translationUnit),
+                        File = DriverOptions.GetIncludePath != null
+                            ? DriverOptions.GetIncludePath(translationUnit)
+                            : GetIncludePath(translationUnit),
                         TranslationUnit = translationUnit,
                         Kind = translationUnit.IsGenerated
                             ? Include.IncludeKind.Quoted
