@@ -1096,7 +1096,7 @@ namespace CppSharp.Generators.CLI
 
             if (param.IsOut || param.IsInOut)
             {
-                var paramType = param.Type;
+                var paramType = param.Type.Desugar();
                 if (paramType is PointerType)
                 {
                     if (!paramType.IsReference())

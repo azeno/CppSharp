@@ -105,7 +105,9 @@ namespace CppSharp.Generators.CLI
             if (param.Usage == ParameterUsage.Out ||
                 param.Usage == ParameterUsage.InOut)
                 // Skip one level of indirection
-                type = param.Type.GetPointee().Visit(this, param.QualifiedType.Qualifiers);
+                type = param.Type.Desugar()
+                    .GetPointee()
+                    .Visit(this, param.QualifiedType.Qualifiers);
             else
                 type = param.Type.Visit(this, param.QualifiedType.Qualifiers);
             Context.Parameter = null;
