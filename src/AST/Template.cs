@@ -28,7 +28,12 @@ namespace CppSharp.AST
         // Name of the declaration.
         public override string Name
         {
-            get { return TemplatedDecl.Name; }
+            get 
+            {
+                if (TemplatedDecl != null)
+                    return TemplatedDecl.Name;
+                return base.Name;
+            }
             set 
             { 
                 base.Name = value;

@@ -206,6 +206,14 @@ namespace CppSharp.AST
                 .FirstOrDefault(f => f.OriginalPtr == ptr);
         }
 
+        public Function FindFunction(Function function)
+        {
+            return Functions
+                .Concat(Templates.OfType<FunctionTemplate>()
+                    .Select(t => t.TemplatedFunction))
+                .FirstOrDefault(f => FunctionEqualityComparer.Instance.Equals(function, f));
+        }
+
         Class CreateClass(string name, bool isComplete)
         {
             var  @class = new Class
@@ -285,10 +293,13 @@ namespace CppSharp.AST
         }
 
         public FunctionTemplate FindFunctionTemplate(string name,
-            List<TemplateParameter> @params)
+            List<TemplateParameter> @params, Function templatedFunction)
         {
-            return Templates.FirstOrDefault(template => template.Name == name
-                && template.Parameters.SequenceEqual(@params)) as FunctionTemplate;
+            return Templates.OfType<FunctionTemplate>()
+                .FirstOrDefault(template => 
+                    template.Name.Equals(name) &&
+                    template.Parameters.SequenceEqual(@params) &&
+                    FunctionEqualityComparer.Instance.Equals(template.TemplatedFunction, templatedFunction));
         }
 
         public FunctionTemplate FindFunctionTemplate(IntPtr ptr)
@@ -301,6 +312,14 @@ namespace CppSharp.AST
         {
             return Templates.FirstOrDefault(template =>
                 template.OriginalPtr == ptr) as ClassTemplate;
+        }
+
+        public ClassTemplate FindClassTemplate(string name, List<TemplateParameter> @params)
+        {
+            return Templates.OfType<ClassTemplate>()
+                .FirstOrDefault(template =>
+                    template.Name.Equals(name) &&
+                    template.Parameters.SequenceEqual(@params));
         }
 
         public TypedefDecl FindTypedef(string name, bool createDecl = false)

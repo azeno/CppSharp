@@ -67,6 +67,8 @@ protected:
     CppSharp::AST::Enumeration^ WalkEnum(clang::EnumDecl* ED);
     CppSharp::AST::Function^ WalkFunction(clang::FunctionDecl* FD, bool IsDependent = false,
         bool AddToNamespace = true);
+    System::Collections::Generic::List<CppSharp::AST::Parameter^>^
+        Parser::WalkFunctionParameters(clang::FunctionDecl* FD, CppSharp::AST::DeclarationContext^ NS);
     CppSharp::AST::Class^ WalkRecordCXX(clang::CXXRecordDecl* Record);
     void WalkRecordCXX(clang::CXXRecordDecl* Record, CppSharp::AST::Class^ RC);
     CppSharp::AST::ClassTemplateSpecialization^

@@ -247,6 +247,15 @@ namespace CppSharp.AST
                 .FirstOrDefault(m => m.OriginalPtr == ptr);
         }
 
+        public Method FindMethod(Method method)
+        {
+            return Methods
+                .Concat(Templates.OfType<FunctionTemplate>()
+                    .Select(t => t.TemplatedFunction)
+                    .OfType<Method>())
+                .FirstOrDefault(m => FunctionEqualityComparer.Instance.Equals(method, m));
+        }
+
         public override T Visit<T>(IDeclVisitor<T> visitor)
         {
             return visitor.VisitClassDecl(this);

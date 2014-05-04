@@ -850,6 +850,8 @@ CppSharp::AST::ClassTemplate^ Parser::WalkClassTemplate(clang::ClassTemplateDecl
     using namespace clang;
     using namespace clix;
 
+    TD = TD->getCanonicalDecl();
+
     auto NS = GetNamespace(TD);
     assert(NS && "Expected a valid namespace");
 
@@ -857,15 +859,21 @@ CppSharp::AST::ClassTemplate^ Parser::WalkClassTemplate(clang::ClassTemplateDecl
     if (CT != nullptr)
         return CT;
 
+    auto Name = marshalString<E_UTF8>(GetDeclName(TD));
+    auto Parameters = WalkTemplateParameterList(TD->getTemplateParameters());
+    CT = NS->FindClassTemplate(Name, Parameters);
+    if (CT != nullptr)
+        return CT;
+
     CT = gcnew CppSharp::AST::ClassTemplate();
     HandleDeclaration(TD, CT);
 
-    CT->Name = marshalString<E_UTF8>(GetDeclName(TD));
+    CT->Name = Name;
     CT->Namespace = NS;
     NS->Templates->Add(CT);
     
     CT->TemplatedDecl = WalkRecordCXX(TD->getTemplatedDecl());
-    CT->Parameters = WalkTemplateParameterList(TD->getTemplateParameters());
+    CT->Parameters = Parameters;
 
     return CT;
 }
@@ -975,7 +983,7 @@ Parser::WalkFunctionTemplate(clang::FunctionTemplateDecl* TD)
         return FT;
 
     CppSharp::AST::Function^ Function = nullptr;
-    auto TemplatedDecl = TD->getTemplatedDecl();
+    auto TemplatedDecl = TD->getTemplatedDecl()->getCanonicalDecl();
 
     if (auto MD = dyn_cast<CXXMethodDecl>(TemplatedDecl))
         Function = WalkMethodCXX(MD, /*AddToClass=*/false);
@@ -983,13 +991,19 @@ Parser::WalkFunctionTemplate(clang::FunctionTemplateDecl* TD)
         Function = WalkFunction(TemplatedDecl, /*IsDependent=*/true,
         /*AddToNamespace=*/false);
 
+    auto Name = marshalString<E_UTF8>(GetDeclName(TD));
+    auto Parameters = WalkTemplateParameterList(TD->getTemplateParameters());
+    FT = NS->FindFunctionTemplate(Name, Parameters, Function);
+    if (FT != nullptr)
+        return FT;
+
     FT = gcnew CppSharp::AST::FunctionTemplate(Function);
     HandleDeclaration(TD, FT);
 
-    FT->Name = marshalString<E_UTF8>(GetDeclName(TD));
+    FT->Name = Name;
     FT->Namespace = NS;
     FT->TemplatedDecl = Function;
-    FT->Parameters = WalkTemplateParameterList(TD->getTemplateParameters());
+    FT->Parameters = Parameters;
 
     NS->Templates->Add(FT);
 
@@ -1063,10 +1077,13 @@ static CppSharp::AST::CXXOperatorKind GetOperatorKindFromDecl(clang::Declaration
 CppSharp::AST::Method^ Parser::WalkMethodCXX(clang::CXXMethodDecl* MD, bool AddToClass)
 {
     using namespace clang;
+    using namespace clix;
 
     // We could be in a redeclaration, so process the primary context.
     if (MD->getPrimaryContext() != MD)
-        return WalkMethodCXX(cast<CXXMethodDecl>(MD->getPrimaryContext()));
+        return WalkMethodCXX(cast<CXXMethodDecl>(MD->getPrimaryContext()), AddToClass);
+    if (MD->getCanonicalDecl() != MD)
+        return WalkMethodCXX(MD->getCanonicalDecl(), AddToClass);
 
     auto RD = MD->getParent();
     auto Decl = WalkDeclaration(RD, /*IgnoreSystemDecls=*/false);
@@ -1074,7 +1091,7 @@ CppSharp::AST::Method^ Parser::WalkMethodCXX(clang::CXXMethodDecl* MD, bool AddT
     auto Class = safe_cast<CppSharp::AST::Class^>(Decl);
 
     // Check for an already existing method that came from the same declaration.
-	auto Method = Class->FindMethod(System::IntPtr(MD->getCanonicalDecl()));
+	auto Method = Class->FindMethod(System::IntPtr(MD));
 	if (Method != nullptr)
 		return Method;
 
@@ -1089,8 +1106,7 @@ CppSharp::AST::Method^ Parser::WalkMethodCXX(clang::CXXMethodDecl* MD, bool AddT
 
     WalkFunction(MD, Method);
 
-	auto Name = MD->getDeclName();
-    Method->Kind = GetMethodKindFromDecl(Name);
+    Method->Kind = GetMethodKindFromDecl(MD->getDeclName());
 
     if (const CXXConstructorDecl* CD = dyn_cast<CXXConstructorDecl>(MD))
     {
@@ -1109,6 +1125,9 @@ CppSharp::AST::Method^ Parser::WalkMethodCXX(clang::CXXMethodDecl* MD, bool AddT
         auto ConvTy = WalkType(CD->getConversionType(), &RTL);
         Method->ConversionType = GetQualifiedType(CD->getConversionType(), ConvTy);
     }
+
+    if (auto ExistingMethod = Class->FindMethod(Method))
+        return ExistingMethod;
 
     if (AddToClass)
         Class->Methods->Add(Method);
@@ -1472,7 +1491,7 @@ CppSharp::AST::Type^ Parser::WalkType(clang::QualType QualType, clang::TypeLoc* 
     case Type::Enum:
     {
         auto ET = Type->getAs<clang::EnumType>();
-        EnumDecl* ED = ET->getDecl();
+        EnumDecl* ED = ET->getDecl()->getCanonicalDecl();
 
         auto TT = gcnew CppSharp::AST::TagType();
         TT->Declaration = TT->Declaration = WalkDeclaration(ED, /*IgnoreSystemDecls=*/false);
@@ -1499,7 +1518,7 @@ CppSharp::AST::Type^ Parser::WalkType(clang::QualType QualType, clang::TypeLoc* 
     case Type::Typedef:
     {
         auto TT = Type->getAs<clang::TypedefType>();
-        TypedefNameDecl* TD = TT->getDecl();
+        TypedefNameDecl* TD = TT->getDecl()->getCanonicalDecl();
 
         auto TTL = TD->getTypeSourceInfo()->getTypeLoc();
         auto TDD = safe_cast<CppSharp::AST::TypedefDecl^>(WalkDeclaration(TD,
@@ -1825,6 +1844,59 @@ CppSharp::AST::Type^ Parser::WalkType(clang::QualType QualType, clang::TypeLoc* 
 
 //-----------------------------------//
 
+System::Collections::Generic::List<CppSharp::AST::Parameter^>^ 
+Parser::WalkFunctionParameters(clang::FunctionDecl* FD, CppSharp::AST::DeclarationContext^ NS)
+{
+    using namespace clang;
+    using namespace clix;
+
+    auto ParamStartLoc = FD->getLocStart();
+    if (auto FTSI = FD->getTypeSourceInfo())
+    {
+        auto FTL = FTSI->getTypeLoc();
+        while (FTL && !FTL.getAs<FunctionTypeLoc>())
+            FTL = FTL.getNextTypeLoc();
+        if (FTL)
+        {
+            auto FTInfo = FTL.castAs<FunctionTypeLoc>();
+            assert(!FTInfo.isNull());
+            ParamStartLoc = FTInfo.getRParenLoc();
+        }
+    }
+
+    auto Result = gcnew System::Collections::Generic::List<CppSharp::AST::Parameter^>(FD->param_size());
+    for (auto it = FD->param_begin(); it != FD->param_end(); ++it)
+    {
+        ParmVarDecl* VD = (*it);
+
+        auto P = gcnew CppSharp::AST::Parameter();
+        P->Name = marshalString<E_UTF8>(VD->getNameAsString());
+
+        TypeLoc PTL;
+        if (auto TSI = VD->getTypeSourceInfo())
+            PTL = VD->getTypeSourceInfo()->getTypeLoc();
+
+        auto paramRange = VD->getSourceRange();
+        paramRange.setBegin(ParamStartLoc);
+
+        HandlePreprocessedEntities(P, paramRange, CppSharp::AST::MacroLocation::FunctionParameters);
+
+        P->QualifiedType = GetQualifiedType(VD->getType(), WalkType(VD->getType(), &PTL));
+        P->HasDefaultValue = VD->hasDefaultArg();
+        P->Namespace = NS;
+        P->Index = VD->getFunctionScopeIndex();
+        HandleDeclaration(VD, P);
+
+        Result->Add(P);
+
+        ParamStartLoc = VD->getLocEnd();
+    }
+
+    return Result;
+}
+
+//-----------------------------------//
+
 CppSharp::AST::Enumeration^ Parser::WalkEnum(clang::EnumDecl* ED)
 {
     using namespace clang;
@@ -2029,32 +2101,7 @@ void Parser::WalkFunction(clang::FunctionDecl* FD, CppSharp::AST::Function^ F,
     if (GetDeclText(Range, Sig))
         F->Signature = clix::marshalString<clix::E_UTF8>(Sig);
 
-    for(auto it = FD->param_begin(); it != FD->param_end(); ++it)
-    {
-        ParmVarDecl* VD = (*it);
-        
-        auto P = gcnew CppSharp::AST::Parameter();
-        P->Name = marshalString<E_UTF8>(VD->getNameAsString());
-
-        TypeLoc PTL;
-        if (auto TSI = VD->getTypeSourceInfo())
-            PTL = VD->getTypeSourceInfo()->getTypeLoc();
-
-        auto paramRange = VD->getSourceRange();
-        paramRange.setBegin(ParamStartLoc);
-
-        HandlePreprocessedEntities(P, paramRange, CppSharp::AST::MacroLocation::FunctionParameters);
-
-        P->QualifiedType = GetQualifiedType(VD->getType(), WalkType(VD->getType(), &PTL));
-        P->HasDefaultValue = VD->hasDefaultArg();
-        P->Namespace = NS;
-        P->Index = VD->getFunctionScopeIndex();
-        HandleDeclaration(VD, P);
-
-        F->Parameters->Add(P);
-
-        ParamStartLoc = VD->getLocEnd();
-    }
+    F->Parameters = WalkFunctionParameters(FD, NS);
 
     bool IsMicrosoftABI = C->getASTContext().getTargetInfo().getCXXABI().isMicrosoft();
     bool CheckCodeGenInfo = !FD->isDependentContext() && !FD->isInvalidDecl();
@@ -2091,12 +2138,15 @@ CppSharp::AST::Function^ Parser::WalkFunction(clang::FunctionDecl* FD, bool IsDe
     using namespace clang;
     using namespace clix;
 
+    if (FD->getCanonicalDecl() != FD)
+        return WalkFunction(FD->getCanonicalDecl(), IsDependent, AddToNamespace);
+
     assert (FD->getBuiltinID() == 0);
 
     auto NS = GetNamespace(FD);
     assert(NS && "Expected a valid namespace");
 
-    auto F = NS->FindFunction(System::IntPtr(FD->getCanonicalDecl()));
+    auto F = NS->FindFunction(System::IntPtr(FD));
     if (F != nullptr)
         return F;
 
@@ -2104,6 +2154,9 @@ CppSharp::AST::Function^ Parser::WalkFunction(clang::FunctionDecl* FD, bool IsDe
     HandleDeclaration(FD, F);
 
     WalkFunction(FD, F, IsDependent);
+
+    if (auto ExistingFunction = NS->FindFunction(F))
+        return ExistingFunction;
 
     if (AddToNamespace)
         NS->Functions->Add(F);
