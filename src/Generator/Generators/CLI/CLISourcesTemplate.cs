@@ -413,8 +413,8 @@ namespace CppSharp.Generators.CLI
                     variable = string.Format("::{0}::{1}",
                                              @class.QualifiedOriginalName, decl.OriginalName);
                 else
-                    variable = string.Format("((::{0}*)NativePtr)->{1}",
-                                             @class.QualifiedOriginalName, decl.OriginalName);
+                    variable = string.Format("{0}->{1}",
+                                             GetNativeField(@class), decl.OriginalName);
 
                 if (isIndexer)
                     variable += string.Format("({0})", indexParameter.Name);
@@ -470,8 +470,8 @@ namespace CppSharp.Generators.CLI
                     variable = string.Format("::{0}::{1}",
                                          @class.QualifiedOriginalName, decl.OriginalName);
                 else
-                    variable = string.Format("((::{0}*)NativePtr)->{1}",
-                                             @class.QualifiedOriginalName, decl.OriginalName);
+                    variable = string.Format("{0}->{1}",
+                                             GetNativeField(@class), decl.OriginalName);
 
                 var ctx = new MarshalContext(Driver)
                     {
@@ -920,7 +920,7 @@ namespace CppSharp.Generators.CLI
                     if (isValueType)
                         Write("{0}.", valueMarshalName);
                     else if (IsNativeMethod(function))
-                        Write("((::{0}*)NativePtr)->", @class.QualifiedOriginalName);
+                        Write("{0}->", GetNativeField(@class));
                     Write("{0}", function.OriginalName);
                 }
 
@@ -1158,6 +1158,25 @@ namespace CppSharp.Generators.CLI
                     return arg.Type.Visit(cppTypePrinter);
                 });
             Write(string.Join(", ", names));
+        }
+
+        private static string GetNativeField(Class @class)
+        {
+            if (CSharpTextTemplate.ShouldGenerateClassNativeField(@class))
+                return "NativePtr";
+            if (HasVirtualBase(@class))
+                return string.Format("(dynamic_cast<::{0}*>(NativePtr))", @class.QualifiedOriginalName);
+            else
+                return string.Format("((::{0}*)NativePtr)", @class.QualifiedOriginalName);
+        }
+
+        private static bool HasVirtualBase(Class @class)
+        {
+            if (@class.Bases.Any(b => b.IsVirtual))
+                return true;
+            if (@class.HasBaseClass)
+                return HasVirtualBase(@class.BaseClass);
+            return false;
         }
 
         public override string FileExtension { get { return "cpp"; } }
