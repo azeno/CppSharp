@@ -95,7 +95,7 @@ namespace CppSharp.Passes
             {
                 function.ExplicityIgnored = true;
                 Log.Debug("Function '{0}' was ignored due to {1} return decl",
-                    function.Name, msg);
+                    function.QualifiedOriginalName, msg);
                 return false;
             }
 
@@ -105,7 +105,7 @@ namespace CppSharp.Passes
                 {
                     function.ExplicityIgnored = true;
                     Log.Debug("Function '{0}' was ignored due to {1} param",
-                        function.Name, msg);
+                        function.QualifiedOriginalName, msg);
                     return false;
                 }
 
@@ -113,7 +113,7 @@ namespace CppSharp.Passes
                 {
                     function.ExplicityIgnored = true;
                     Log.Debug("Function '{0}' was ignored due to {1} param",
-                        function.Name, msg);
+                        function.QualifiedOriginalName, msg);
                     return false;
                 }
 
@@ -122,7 +122,7 @@ namespace CppSharp.Passes
                 {
                     function.ExplicityIgnored = true;
                     Log.Debug("Function '{0}' was ignored due to unsupported decayed type param",
-                        function.Name);
+                        function.QualifiedOriginalName);
                     return false;
                 }
 
@@ -135,7 +135,7 @@ namespace CppSharp.Passes
                         function.ExplicityIgnored = true;
                         Log.Debug(
                             "Function '{0}' was ignored due to an indirect return param not of a tag type",
-                            function.Name);
+                            function.QualifiedOriginalName);
                         return false;
                     }
                 }
